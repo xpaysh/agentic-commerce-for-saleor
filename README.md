@@ -1,56 +1,90 @@
-# Agentic Commerce for Saleor
+# agentic-commerce-for-saleor
 
-Multi-protocol agentic-commerce layer for [Saleor](https://saleor.io/) — the GraphQL-native, headless commerce platform. Speaks **[ACP](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol)**, **[UCP](https://github.com/Universal-Commerce-Protocol/ucp)**, and **[AP2](https://github.com/google-agentic-commerce/AP2)** out of the box, emits real-standard discovery files (`/llms.txt`, schema.org JSON-LD, real-AI-crawler `robots.txt`), and settles through your existing Saleor payment app — cards, [Stripe MPP](https://mpp.dev), [x402](https://x402.org), stablecoins.
+**Multi-protocol agentic-commerce layer for [Saleor](https://saleor.io/) 3.x.** Speaks ACP, UCP, AP2; emits real-standard discovery files; signed-JWT cart-deeplinks; rail-agnostic (your existing Saleor payment app completes payment).
 
-> Scaffold for the [`agentic-commerce-for-*`](https://github.com/xpaysh?q=agentic-commerce-for-) family. Full implementation lands in coming weeks alongside the [plugin template](https://github.com/xpaysh/agentic-commerce-plugin-template).
+Runs as a Node sidecar talking to Saleor over its GraphQL API. Needs only a Saleor App token. Implements [`@xpaysh/adapter-contract`](https://www.npmjs.com/package/@xpaysh/adapter-contract) — same contract as the WooCommerce, commercetools, BigCommerce, and Magento siblings.
 
-## Why this exists alongside `saleor/saleor-mcp`
+## What v0.1 ships
 
-Saleor ships an official [`saleor-mcp`](https://github.com/saleor/saleor-mcp) — an MCP server exposing Saleor operations as tools. That's an MCP transport binding; it doesn't speak ACP, UCP, or AP2 directly.
+### Discovery (real standards only)
 
-This repo is the **commerce-protocol layer**, not a competing MCP server:
+| Path | Standard |
+|---|---|
+| `GET /llms.txt` | [llmstxt.org](https://llmstxt.org) |
+| `GET /.well-known/ucp` | UCP profile |
+| `GET /.well-known/oauth-protected-resource` | RFC 9728 (off by default) |
+| `GET /.well-known/agent-card.json` | A2A 1.0 (off by default) |
+| `GET /robots.txt` | RFC 9309 + AI-bot allowlist |
+| `GET /api/v1/jsonld/product/:slug-or-id` | schema.org JSON-LD |
 
-- **ACP** endpoints (per-session `checkout_session` capability negotiation) on top of Saleor's GraphQL.
-- **UCP** REST surface with [RFC 9421](https://datatracker.ietf.org/doc/rfc9421/) signed requests, mapping cart / checkout / order operations onto Saleor's GraphQL mutations.
-- **AP2** mandate acceptance alongside Saleor's existing payment apps.
-- Real-standard discovery emission (`/llms.txt`, schema.org JSON-LD, AI-crawler `robots.txt` allowlist).
+### Protocols
 
-The two compose: a Saleor store can run `saleor-mcp` for the MCP transport binding *and* this app for ACP/UCP/AP2 protocol surface, with the same Saleor instance backing both.
+- **UCP**: catalog search/lookup, cart CRUD (Saleor Checkout), checkout, order lookup
+- **ACP**: `checkout_sessions` create / get / update / complete, order lookup
+- **AP2**: structural mandate verification, mandate-bound checkout
 
-## What this gives a Saleor merchant
+### Cart handoff
 
-- **Multi-protocol coverage** — beyond MCP, the same Saleor catalog is reachable via ACP (OpenAI `Buy It in ChatGPT`), UCP (any UCP-speaking agent with RFC 9421 signed integrity), and AP2 (Google Agent Builder).
-- **Rail-agnostic settlement** — your existing Saleor payment app (Stripe, Adyen, Mollie, custom) handles money. Optional MPP / x402 / stablecoin rails are configurable.
-- **Cart deeplinks** — JWT-signed (commercial mode) or query-string (standalone) — pre-fill a Saleor checkout via GraphQL and redirect the buyer.
-- **Two-mode operation** — *standalone* or *commercial* (xpay backend adds catalog hosting, attribution).
+`GET /cart/deeplink?token=<jwt>` redeems an HS256-signed JWT and lands the agent on the storefront's checkout with a pre-filled Saleor Checkout.
 
-## Distribution shape
-
-Saleor's [Apps framework](https://docs.saleor.io/developer/extending/apps/overview) is the canonical extension model. This repo ships as a **Saleor App** — a separate hosted service authenticating via Saleor's app manifest and webhook subscriptions.
+## Capabilities
 
 ```
-   AI Agent  ───►  agentic-commerce-for-saleor (Saleor App)  ───►  Saleor GraphQL API
-                  (ACP / UCP / AP2 endpoints,                     (Checkout, Order, Product)
-                   listens to Saleor webhooks)                    + Webhooks
-                          │
-                          └──►  Merchant's existing Saleor payment app
-                                (Stripe, Adyen, Mollie, MPP, x402, …)
+cart                ✓
+checkout            ✓  (hands off to storefront for payment leg)
+catalogSearch       ✓
+catalogLookup       ✓
+order               ✓
+inventoryRealtime   ✓
+refunds             —  v0.3 (orderRefund)
+disputes            —  v0.3
+webhooks            —  v0.3 (Saleor webhook subscriptions)
 ```
 
-## Status
+## Quickstart (Docker)
 
-- 🚧 **Scaffold** — README + LICENSE only. Headless / GraphQL-native shape reuses the same TypeScript scaffolding as the commercetools sibling.
-- Track progress and adjacent platforms in the [awesome-agentic-commerce](https://github.com/xpaysh/awesome-agentic-commerce) registry.
+```bash
+git clone https://github.com/xpaysh/agentic-commerce-for-saleor.git
+cd agentic-commerce-for-saleor
+cp .env.example .env
+# Fill in XPAY_MERCHANT_SLUG, SITE_URL, XPAY_API_KEY,
+# SALEOR_API_URL, SALEOR_APP_TOKEN, SALEOR_CHANNEL
 
-## See also
+docker compose -f examples/docker-compose.yml up --build
+```
 
-- [Plugin template](https://github.com/xpaysh/agentic-commerce-plugin-template) — shared TypeScript core
-- [awesome-agentic-commerce](https://github.com/xpaysh/awesome-agentic-commerce) — ecosystem registry
-- [`saleor/saleor-mcp`](https://github.com/saleor/saleor-mcp) — official Saleor MCP server (composes with this app)
-- [Agentic Commerce for commercetools](https://github.com/xpaysh/agentic-commerce-for-commercetools) — sibling headless scaffold
-- [ACP vs UCP vs AP2 — Technical Comparison](https://docs.xpay.sh/agentic-commerce-protocols/comparison)
-- [Saleor Apps documentation](https://docs.saleor.io/developer/extending/apps/overview)
+## Manual run
+
+```bash
+npm install
+cp .env.example .env       # fill in
+npm run build
+node --env-file=.env dist/server.js
+```
+
+## Get a Saleor App token
+
+1. Saleor Dashboard → **Configuration → Apps → Local Apps → Create App**
+2. Name it `xpay agentic commerce`
+3. Grant permissions:
+   - Manage products (read)
+   - Manage orders (read)
+   - Manage checkouts (create/update)
+4. Save → **API Tokens → Create token** → copy into `SALEOR_APP_TOKEN`
+5. Find your channel slug under **Configuration → Channels** (usually `default-channel`).
+
+## Architecture
+
+This package is one of a family of `agentic-commerce-for-<platform>` repos under [xpaysh](https://github.com/xpaysh) that all implement the same `@xpaysh/adapter-contract`:
+
+- [agentic-commerce-for-woocommerce](https://github.com/xpaysh/agentic-commerce-for-woocommerce) — PHP-native reference
+- [agentic-commerce-for-commercetools](https://github.com/xpaysh/agentic-commerce-for-commercetools) — TypeScript reference
+- [agentic-commerce-for-bigcommerce](https://github.com/xpaysh/agentic-commerce-for-bigcommerce) — TypeScript sibling
+- [agentic-commerce-for-magento](https://github.com/xpaysh/agentic-commerce-for-magento) — TypeScript sidecar
+- [agentic-commerce-for-saleor](https://github.com/xpaysh/agentic-commerce-for-saleor) — *this repo*
+
+Per-platform delta is ~4 files (`saleor-client.ts`, `queries.ts`, `adapter.ts`, `mappers.ts`); every protocol route handler, discovery emitter, JWT verifier, and JSON-LD generator is shared.
 
 ## License
 
-Apache-2.0.
+Apache-2.0
