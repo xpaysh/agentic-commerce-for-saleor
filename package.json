@@ -1,6 +1,6 @@
 {
   "name": "agentic-commerce-for-saleor",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Agentic commerce for Saleor. Multi-protocol (ACP, UCP, AP2) discovery + cart-handoff service. Ships /llms.txt, /.well-known/ucp, robots.txt allowlist for real AI crawlers, schema.org JSON-LD on PDPs, signed-JWT cart-deeplink redemption, and full ACP/UCP/AP2 REST endpoint stack. Implements @xpaysh/adapter-contract against the Saleor GraphQL API. Rail-agnostic.",
   "private": true,
   "license": "Apache-2.0",
